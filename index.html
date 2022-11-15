@@ -1,1 +1,152 @@
+<html>
+<head>
+    <!--
+    Useful links:
+    https://developers.google.com/maps/documentation/javascript/places#TextSearchRequests
+    https://medium.com/@idorenyinudoh10/how-to-export-data-from-javascript-to-a-csv-file-955bdfc394a9
+    https://developers.google.com/maps/documentation/places/web-service/usage-and-billing?hl=en_US
+  -->
 
+</head>
+<body>
+  <h1>Get parking lots info and coordinates</h1>
+  <h4>By Tianhao Jiang</h4>
+  <h3>Why make this page?</h3>
+  <ul>
+    <li>The coordinates of the parking lots are needed to calculate parking lots closest to the user</li>
+    <li>place_id values are needed if we want to show the parking lot location
+     on a map using Google Maps API</li>
+  </ul>
+
+  <h3>How to use it?</h3>
+  <ol>
+    <li>To begin, enter one parking lot per row in the box and hit submit.
+      Example input:<br>NC21<br>NC22<br>NC26</li>
+    <li>When the program finishes, click on the appeared link to download result in
+      csv format.</li>
+  </ol>
+  <h3>When finished:</h3>
+  <ol>
+    <li>We can copy the data from the .csv file into "UMich Parking Lot Info" in the shared drive</li>
+    <li>We can then convert the data in "UMich Parking Lot Info" into a html table.
+    using <a href="https://www.convertcsv.com/csv-to-html.htm">this online tool</a>. </li>
+  </ol>
+  <h3>Note:</h3>
+  <ul>
+    <li>Some results are inaccurate and need to be manually modified
+      (for example, "NC34" can't <br>be found on Google Map, and searching for it using this page yields the result "Lot NC46").
+    </li>
+    <li>I limited the number of queries per day to 5000 (which should be much more than enough) <br>
+       for now so Google doesn't
+       <a href="https://developers.google.com/maps/documentation/places/web-service/usage-and-billing?hl=en_US">charge</a>
+       me. You can also
+       <a href="https://developers.google.com/maps/documentation/javascript/get-api-key">get your own key</a>
+       and replace <br>my key with it in the bottom of the .html file.
+       The APIs needed for this page are <br>
+       <a href="https://developers.google.com/maps/documentation/places/web-service">Places API</a>
+       and
+       <a href="https://developers.google.com/maps/documentation/javascript">Maps JavaScript API</a>
+       .</li>
+  </ul>
+  <p>
+  </p>
+  <textarea id="lots" rows="20" cols="20"></textarea>
+  <br>
+  <button id="get-coordinates">submit</button>
+  <p>
+    Note: a <span id="delay"></span> time span is added between
+    each query so Google's queries per second (QPS) limit is not exceeded.<br>
+    <span id="timer"></span>
+  </p>
+  <h3>Results:</h3>
+  <a id="download-link"></a>
+  <p id="result"></p>
+  <div id="map" name="map"> </div>
+</body>
+
+<script type="text/javascript">
+
+  window.addEventListener("load", initialize);
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  let lots;
+  let lotData;
+  let umich;
+  let remainingTask;
+  var map;
+  var service;
+  const delay = 400;
+
+  function initialize() {
+    umich = new google.maps.LatLng(42.2780435128628, -83.73808464174851);
+    map = new google.maps.Map($('map'));
+    service = new google.maps.places.PlacesService(map);
+    $("get-coordinates").addEventListener("click", getResults);
+    $("delay").innerText = delay/1000 + "s";
+  }
+
+  function getResults() {
+    lots = $("lots").value.split("\n");
+    lotData = new Array(lots.length + 1).fill();
+    lotData[0] = ["lot id","name","place_id", "formatted_address","latitude", "longitude"];
+    lots = $("lots").value.split("\n");
+    lots.forEach((lotId,i) => {
+      var request = {
+        input: lotId + ' Parking Lot',
+        location: umich,
+        radius: '5000',
+      };
+      remainingTask = lots.length;
+      var currentId = lotId.slice();
+      setTimeout(()=>{
+        service.textSearch(request, callback(currentId));
+      }, delay*i);
+    });
+  }
+
+  function callback(lotId) {
+    function helper(results, status) {
+      var currentId = lotId;
+      var result;
+      if (status == google.maps.places.PlacesServiceStatus.OK) {
+        var place = results[0];
+        console.log(currentId, place)
+        result = [currentId,place.name,place.place_id, place.formatted_address,
+        place.geometry.location.lat(), place.geometry.location.lng()];
+      } else {
+        result = [currentId]
+        console.log(status)
+      }
+      lotData[lots.indexOf(currentId)+1] = result;
+      remainingTask--;
+      $("timer").innerText = "Remaining time: " + remainingTask*delay/1000 + "s";
+      if (remainingTask == 0) {
+        displayResult();
+      }
+    }
+    return helper;
+  }
+
+  function displayResult() {
+    refinedData = lotData;
+    let csvContent = ''
+    lotData.forEach(row => {
+    csvContent += "\"" + row.join('\",\"') + "\"" + '\n'
+    })
+    $("result").innerText = "";
+    $("result").innerText += csvContent;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8,' })
+    const objUrl = URL.createObjectURL(blob)
+    const link = $("download-link");
+    link.setAttribute('href', objUrl)
+    link.setAttribute('download', 'File.csv')
+    link.textContent = 'Click to Download Results as CSV'
+  }
+</script>
+
+<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDsFHTDlAQYR4bnqvW3tfBOzMSFOJwb_aU&libraries=places"></script>
+
+</html>
